@@ -14,6 +14,7 @@ import sys
 import math
 import random
 import pygame
+import asyncio
 from wumpus_game import WumpusWorld, Agent, Direction, GameState, DIR_DELTA
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -989,14 +990,15 @@ class WumpusGUI:
             self.restart()
 
     # ─── Main Loop ───────────────────────────────────────────────────────
-    def run(self):
+    async def run(self):
         running = True
         while running:
             running = self.handle_events()
             self.agent.tick()
-            self.draw()
+            self.draw() # Draw everything
             self.tick_count += 1
             self.clock.tick(FPS)
+            await asyncio.sleep(0)  # Very important for web build!
 
         pygame.quit()
         sys.exit()
@@ -1006,4 +1008,4 @@ class WumpusGUI:
 
 if __name__ == "__main__":
     game = WumpusGUI()
-    game.run()
+    asyncio.run(game.run())
