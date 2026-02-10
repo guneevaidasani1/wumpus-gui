@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Wumpus World - A visually stunning dungeon-crawler adventure game. Explore caves, defeat monsters, and find treasure!">
+    <meta name="keywords" content="wumpus world, dungeon crawler, pygame, browser game, adventure">
+    <meta name="author" content="Wumpus World Contributors">
+    <title>🏰 Wumpus World - Dungeon Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeIn 1s ease-in;
+        }
+
+        h1 {
+            font-size: 3em;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: #a0a0a0;
+            margin-bottom: 20px;
+        }
+
+        .game-container {
+            background: rgba(30, 30, 45, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            max-width: 1400px;
+            width: 100%;
+            animation: slideUp 0.8s ease-out;
+        }
+
+        #pygame-canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.5em;
+            color: #ffd700;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 215, 0, 0.3);
+            border-top: 4px solid #ffd700;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        .controls {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(40, 40, 60, 0.6);
+            border-radius: 10px;
+        }
+
+        .controls h2 {
+            color: #ffd700;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .control-item {
+            background: rgba(60, 60, 80, 0.5);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 3px solid #ffd700;
+        }
+
+        .control-item strong {
+            color: #ffd700;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #808080;
+            font-size: 0.9em;
+        }
+
+        footer a {
+            color: #ffd700;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        footer a:hover {
+            color: #ffed4e;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            margin: 5px;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .features {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(40, 40, 60, 0.6);
+            border-radius: 10px;
+        }
+
+        .features h2 {
+            color: #ffd700;
+            margin-bottom: 15px;
+        }
+
+        .features ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .features li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .features li:before {
+            content: "✨";
+            position: absolute;
+            left: 0;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            .control-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🏰 Wumpus World</h1>
+        <p class="subtitle">Dungeon Adventure - Browser Edition</p>
+        <div>
+            <span class="badge">🎮 Play in Browser</span>
+            <span class="badge">✨ Cave Theme</span>
+            <span class="badge">🔥 Visual Effects</span>
+        </div>
+    </header>
+
+    <div class="game-container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading Wumpus World...</p>
+            <p style="font-size: 0.8em; color: #a0a0a0; margin-top: 10px;">
+                Preparing the dungeon, lighting torches, and waking the Wumpus...
+            </p>
+        </div>
+        <canvas id="pygame-canvas" style="display: none;"></canvas>
+    </div>
+
+    <div class="controls">
+        <h2>🎮 Controls</h2>
+        <div class="control-grid">
+            <div class="control-item">
+                <strong>WASD / Arrow Keys</strong>
+                Move your character through the dungeon
+            </div>
+            <div class="control-item">
+                <strong>Enter / Space</strong>
+                Shoot arrow in facing direction
+            </div>
+            <div class="control-item">
+                <strong>R</strong>
+                Restart the game
+            </div>
+            <div class="control-item">
+                <strong>H</strong>
+                Toggle help overlay
+            </div>
+            <div class="control-item">
+                <strong>F11</strong>
+                Toggle fullscreen mode
+            </div>
+            <div class="control-item">
+                <strong>ESC</strong>
+                Exit game or close help
+            </div>
+        </div>
+    </div>
+
+    <div class="features">
+        <h2>✨ Features</h2>
+        <ul>
+            <li>Cave-themed parallax background with stalactites and atmospheric effects</li>
+            <li>Humanoid adventurer character with torch and walking animations</li>
+            <li>Menacing demon Wumpus with glowing eyes and breathing animation</li>
+            <li>Particle system with floating dust motes for immersion</li>
+            <li>Enhanced tiles with rich stone textures and swirling fog</li>
+            <li>Dramatic visual effects including torch glow and sparkles</li>
+            <li>Adjustable world size (4×4 to 8×8 grid)</li>
+            <li>Score tracking and strategic gameplay</li>
+        </ul>
+    </div>
+
+    <footer>
+        <p>
+            <strong>Goal:</strong> Find the gold and return to the starting position (bottom-left) without dying!
+        </p>
+        <p style="margin-top: 10px;">
+            <a href="https://github.com/yourusername/wumpus-world-main-gui" target="_blank">
+                View on GitHub
+            </a> | 
+            Made with ❤️ using Pygame & Pygbag
+        </p>
+    </footer>
+
+    <!-- Pygbag loader -->
+    <script src="https://pygame-web.github.io/archives/0.9/pythons.js" type="module"></script>
+    <script type="application/json" id="pygbag-config">
+    {
+        "packages": ["pygame"],
+        "main": "wumpus_gui.py",
+        "cdn": "https://pygame-web.github.io/archives/0.9/",
+        "width": 1280,
+        "height": 720
+    }
+    </script>
+
+    <script>
+        // Hide loading screen when game starts
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const loading = document.getElementById('loading');
+                const canvas = document.getElementById('pygame-canvas');
+                if (canvas) {
+                    loading.style.display = 'none';
+                    canvas.style.display = 'block';
+                }
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
