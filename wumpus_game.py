@@ -1,107 +1,230 @@
+"""
+Wumpus World – Game Engine
+Refactored for GUI integration. Import-friendly, no top-level game loop.
+"""
 import random
+from enum import Enum
+
+
+class Direction(Enum):
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+
+
+class GameState(Enum):
+    PLAYING = "playing"
+    WIN = "win"
+    DEAD_WUMPUS = "dead_wumpus"
+    DEAD_PIT = "dead_pit"
+
+
+# Direction vectors -----------------------------------------------------------
+DIR_DELTA = {
+    Direction.UP: (-1, 0),
+    Direction.DOWN: (1, 0),
+    Direction.LEFT: (0, -1),
+    Direction.RIGHT: (0, 1),
+}
 
 
 class WumpusWorld:
-    def __init__(self , size = 4 , num_pits= 3):
+    """The world grid: places Wumpus, gold, pits, and arrows."""
+
+    def __init__(self, size=4, num_pits=3):
         self.size = size
-        self.grid = [['' for i in range(size)]  for i in range(size)]
-        self.agent_pos = (0,0)
-        self.place_elements()
-    def place_elements(self , num_pits = 3 , size = 4):
-        cells = [(x,y) for x in range(size) for y in range(size) if(x,y) != self.agent_pos]
+        self.num_pits = num_pits
+        self.grid: list[list[str]] = []
+        self.wumpus_alive = True
+        self.wumpus_pos: tuple[int, int] | None = None
+        self.reset()
+
+    # --- setup ---------------------------------------------------------------
+    def reset(self):
+        size = self.size
+        self.grid = [["" for _ in range(size)] for _ in range(size)]
+        self.wumpus_alive = True
+        cells = [
+            (r, c) for r in range(size) for c in range(size) if (r, c) != (size - 1, 0)
+        ]
         random.shuffle(cells)
-        wumpus_coords = cells.pop()
-        self.grid[wumpus_coords[0]][wumpus_coords[1]] = 'W'
-        gold = cells.pop()
-        self.grid[gold[0]][gold[1]] = 'G'
-        arrow = cells.pop()
-        self.grid[arrow[0]][arrow[1]] = 'A'
-        for i in range(num_pits): 
-            pit = cells.pop() 
-            self.grid[pit[0]][pit[1]] = 'P'
-    def get_percepts(self,pos):
-        x,y = pos
-        percepts = []
-        if 'G' in self.grid[x][y]:
-            percepts.append('Glitter')
-        if any('P' in self.grid[i][j] for i,j in self.get_neighbors(x, y)): 
-            percepts.append('Breeze') 
-        if any('W' in self.grid[i][j] for i,j in self.get_neighbors(x, y)): 
-            percepts.append('Stench')
-        return percepts
-    def get_neighbors(self, x, y): 
-        neighbors = [] 
-        for a, b in [(-1,0),(1,0),(0,-1),(0,1)]: 
-            i, j = x+a, y+b 
-            if 0 <= i < self.size and 0 <= j < self.size: 
-                neighbors.append((i, j)) 
+
+        # Place wumpus
+        wp = cells.pop()
+        self.grid[wp[0]][wp[1]] = "W"
+        self.wumpus_pos = wp
+
+        # Place gold
+        gp = cells.pop()
+        self.grid[gp[0]][gp[1]] = "G"
+
+        # Place arrow pickup
+        ap = cells.pop()
+        self.grid[ap[0]][ap[1]] = "A"
+
+        # Place pits
+        for _ in range(min(self.num_pits, len(cells))):
+            pp = cells.pop()
+            self.grid[pp[0]][pp[1]] = "P"
+
+    # --- queries -------------------------------------------------------------
+    def get_neighbors(self, r, c):
+        neighbors = []
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < self.size and 0 <= nc < self.size:
+                neighbors.append((nr, nc))
         return neighbors
-    
-    
+
+    def get_percepts(self, pos):
+        r, c = pos
+        percepts = []
+        cell = self.grid[r][c]
+        if cell == "G":
+            percepts.append("Glitter")
+        if any(self.grid[nr][nc] == "P" for nr, nc in self.get_neighbors(r, c)):
+            percepts.append("Breeze")
+        if any(self.grid[nr][nc] == "W" for nr, nc in self.get_neighbors(r, c)):
+            percepts.append("Stench")
+        return percepts
+
+    def cell_at(self, r, c):
+        return self.grid[r][c]
+
+
 class Agent:
-    def __init__(self, world):
+    """Player agent with facing direction, inventory, and scoring."""
+
+    START_POS_OFFSET = -1  # computed from world size
+
+    def __init__(self, world: WumpusWorld):
         self.world = world
-        self.pos = (0, 0)
+        start = (world.size - 1, 0)
+        self.pos = start
+        self.facing = Direction.UP
         self.has_gold = False
-        self.explored = {(0,0)}
         self.has_arrow = False
-        self.game_over = False
+        self.explored: set[tuple[int, int]] = {start}
+        self.state = GameState.PLAYING
+        self.score = 0
+        self.message = ""
+        self.message_timer = 0  # frames remaining for message display
+        self.arrow_trail: list[tuple[int, int]] = []  # for animation
+        self.arrow_anim_timer = 0
+        self.killed_wumpus_pos: tuple[int, int] | None = None
 
-    def move(self, direction):
-        if self.game_over:
-            return
-        x,y = self.pos
-        if direction == 'up' and x>0:
-            self.pos = (x-1,y)
-        elif direction == "down" and x < self.world.size - 1:
-            self.pos = (x+1,y)
-        elif direction == 'left' and y > 0:
-            self.pos = (x,y-1)
-        elif direction == 'right' and y < self.world.size - 1:
-            self.pos = (x,y+1)
-        else:
-            print("Invalid move!")
-            return
+    # --- helpers -------------------------------------------------------------
+    def _set_message(self, msg: str, duration: int = 120):
+        self.message = msg
+        self.message_timer = duration
+
+    def tick(self):
+        """Call once per frame to decay timers."""
+        if self.message_timer > 0:
+            self.message_timer -= 1
+        if self.arrow_anim_timer > 0:
+            self.arrow_anim_timer -= 1
+
+    # --- actions -------------------------------------------------------------
+    def move(self, direction: Direction) -> bool:
+        """Move the agent. Returns True if the move was valid."""
+        if self.state != GameState.PLAYING:
+            return False
+
+        self.facing = direction
+        dr, dc = DIR_DELTA[direction]
+        nr, nc = self.pos[0] + dr, self.pos[1] + dc
+
+        if not (0 <= nr < self.world.size and 0 <= nc < self.world.size):
+            self._set_message("Can't move there!", 60)
+            return False
+
+        self.pos = (nr, nc)
         self.explored.add(self.pos)
+        self.score -= 1
+
+        # Check cell contents
+        cell = self.world.cell_at(nr, nc)
         percepts = self.world.get_percepts(self.pos)
-        print(f"Moved to {self.pos}, percepts: {percepts}") 
-        cell = self.world.grid[self.pos[0]][self.pos[1]] 
-        if cell == 'W':
+
+        if cell == "W":
             if self.has_arrow:
-                print("You killed the Wumpus")
-                self.world.grid[self.pos[0]][self.pos[1]] = ''
+                # auto-defend: kill wumpus on contact if you have arrow
+                self.has_arrow = False
+                self.world.grid[nr][nc] = ""
+                self.world.wumpus_alive = False
+                self.killed_wumpus_pos = (nr, nc)
+                self.score += 500
+                self._set_message("⚔️ You killed the Wumpus in combat!", 180)
             else:
-                print(" You were eaten by the Wumpus, Game Over.") 
-                self.game_over = True
-        elif cell == 'P': 
-            print(" You fell into a pit Game Over.") 
-            self.game_over = True
-        elif cell == 'G': 
-            self.has_gold = True 
-            print(" You found the gold ")
-        elif cell == 'A':
+                self.state = GameState.DEAD_WUMPUS
+                self._set_message("💀 Eaten by the Wumpus! GAME OVER", 999)
+        elif cell == "P":
+            self.state = GameState.DEAD_PIT
+            self._set_message("💀 Fell into a pit! GAME OVER", 999)
+        elif cell == "G":
+            self.has_gold = True
+            self.world.grid[nr][nc] = ""
+            self.score += 1000
+            self._set_message("✨ You found the GOLD! Return to start!", 180)
+        elif cell == "A":
             self.has_arrow = True
-            self.world.grid[self.pos[0]][self.pos[1]] = ''
-            print("You found an arrow")
-
-def printboard(world,agent,explored):
-    for x in range(world.size):
-        row = []
-        for y in range(world.size):
-            if(x,y) == agent.pos:
-                row.append("A")
-            elif (x,y) in explored:
-                row.append('.')
+            self.world.grid[nr][nc] = ""
+            self.score += 0
+            self._set_message("🏹 Picked up an arrow!", 120)
+        else:
+            # percept messages
+            if percepts:
+                self._set_message("  ".join(f"⚠️ {p}" for p in percepts), 90)
             else:
-                row.append('?')
-        print(' '.join(row))
-    print()
+                self.message = ""
+                self.message_timer = 0
 
-world = WumpusWorld(size=4, num_pits=3)
-agent = Agent(world)
-start_percepts = world.get_percepts(agent.pos) 
-print(f"Starting at {agent.pos}, percepts: {start_percepts}")
-while not agent.has_gold and not agent.game_over:
-    printboard(world, agent, agent.explored)
-    move = input("Enter move (up/down/left/right): ")
-    agent.move(move)
+        # Win condition: have gold and back at start
+        start = (self.world.size - 1, 0)
+        if self.has_gold and self.pos == start:
+            self.state = GameState.WIN
+            self.score += 1000
+            self._set_message("🏆 YOU WIN! Escaped with the gold!", 999)
+
+        return True
+
+    def shoot(self) -> bool:
+        """Shoot an arrow in the facing direction. Returns True if arrow was fired."""
+        if self.state != GameState.PLAYING:
+            return False
+        if not self.has_arrow:
+            self._set_message("❌ No arrow to shoot!", 90)
+            return False
+
+        self.has_arrow = False
+        self.score -= 10
+        dr, dc = DIR_DELTA[self.facing]
+        r, c = self.pos
+
+        # Build trail for animation
+        trail = []
+        hit = False
+        while True:
+            r, c = r + dr, c + dc
+            if not (0 <= r < self.world.size and 0 <= c < self.world.size):
+                break
+            trail.append((r, c))
+            if self.world.cell_at(r, c) == "W":
+                hit = True
+                break
+
+        self.arrow_trail = trail
+        self.arrow_anim_timer = 30  # frames
+
+        if hit:
+            self.world.grid[r][c] = ""
+            self.world.wumpus_alive = False
+            self.killed_wumpus_pos = (r, c)
+            self.score += 500
+            self._set_message("🎯 Your arrow hit the Wumpus! It's dead!", 180)
+        else:
+            self._set_message("🏹 Arrow missed... it flew into darkness.", 120)
+
+        return True
