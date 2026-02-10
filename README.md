@@ -58,34 +58,6 @@ pip install -r requirements.txt
 python wumpus_gui.py
 ```
 
-## 🌐 Play in Browser (GitHub Pages)
-
-**Want to play without installing anything?** Deploy to GitHub Pages!
-
-### Quick Deploy Steps:
-
-1. **Create a GitHub repository** named `wumpus-world-main-gui`
-
-2. **Push your code:**
-```bash
-git init
-git add .
-git commit -m "Deploy Wumpus World to GitHub Pages"
-git remote add origin https://github.com/YOUR_USERNAME/wumpus-world-main-gui.git
-git push -u origin main
-```
-
-3. **Enable GitHub Pages:**
-   - Go to repository Settings → Pages
-   - Source: `main` branch, `/ (root)` folder
-   - Click Save
-
-4. **Play at:** `https://YOUR_USERNAME.github.io/wumpus-world-main-gui/`
-
-The game runs entirely in your browser using **Pygbag** - no installation needed!
-
-📖 **Detailed instructions:** See [DEPLOYMENT.md](DEPLOYMENT.md)
-
 ## 🎲 How to Play
 
 ### Objective
